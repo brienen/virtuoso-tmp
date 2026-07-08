@@ -1,7 +1,16 @@
-# {$SITE_ADDRESS} en {$FRONTEND_PORT} komen uit de container-env (docker-compose).
-# ':80' -> platte HTTP (handig voor testen via IP). Een echt domein -> Caddy
-# regelt automatisch een Let's Encrypt-certificaat.
-{$SITE_ADDRESS} {
+# Draait achter een externe (systeem-)nginx die TLS termineert. Caddy doet hier
+# dus GEEN TLS: het luistert plat op :80. De nginx proxyt hiernaartoe (zie
+# HTTP_BIND in de stack-env) en stuurt de X-Forwarded-* headers mee.
+# {$FRONTEND_PORT} komt uit de container-env (docker-compose).
+{
+	# Vertrouw de X-Forwarded-* van de proxy zodat het echte client-IP behouden
+	# blijft. nginx praat via het Docker-bridge-netwerk (een privé-range).
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+:80 {
 	encode gzip
 
 	# Alleen het SPARQL-endpoint van Virtuoso is publiek (standaard read-only).

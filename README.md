@@ -1,14 +1,16 @@
 # GGM Linked Data — Portainer stack
 
-Virtuoso triple store + generieke linked-data-verkenner + Caddy (reverse proxy
-met automatische TLS), klaar om via **Portainer** te deployen (build method:
-**Repository**). Elke GGM-release staat als TTL in `data/`; een loader-container
-importeert die bij elke (re)deploy in named graphs. De frontend praat via Caddy
-met het read-only SPARQL-endpoint op `/sparql`.
+Virtuoso triple store + generieke linked-data-verkenner + Caddy als interne
+router, klaar om via **Portainer** te deployen (build method: **Repository**).
+De stack draait **achter een externe (systeem-)nginx die de TLS termineert**;
+Caddy luistert plat op `:80` en wordt alleen op `127.0.0.1` gepubliceerd, waar
+nginx naartoe proxyt. Elke GGM-release staat als TTL in `data/`; een
+loader-container importeert die bij elke (re)deploy in named graphs. De frontend
+praat via Caddy met het read-only SPARQL-endpoint op `/sparql`.
 
 ## Structuur
 - `docker-compose.yml` — virtuoso, loader (one-shot import), frontend, caddy
-- `Caddyfile` — routing + TLS; alleen `/sparql` publiek
+- `Caddyfile` — interne routing; alleen `/sparql` publiek (TLS doet de nginx)
 - `loader/load.sh` — importeert `data/*.ttl` in named graphs + `latest`
 - `frontend/` — generieke verkenner (nginx); later inruilbaar voor Ashkans image
 - `data/` — de TTL-exports (`ggm-<versie>.ttl`), meegecommit
@@ -22,13 +24,42 @@ met het read-only SPARQL-endpoint op `/sparql`.
    - Repository reference: `refs/heads/main`
    - Compose path: `docker-compose.yml`
 3. Onder **Environment variables** de waarden uit `stack.env.example` invullen —
-   in elk geval `DBA_PASSWORD`. `SITE_ADDRESS=:80` om via het server-IP te testen,
-   of je domein voor automatische HTTPS (vereist een DNS-record naar de server).
+   in elk geval `DBA_PASSWORD`. `HTTP_BIND` bepaalt waar Caddy op de host
+   luistert (standaard `127.0.0.1:8080`); daar proxyt de nginx naartoe.
 4. **Deploy the stack**. Portainer bouwt de frontend en start alles; de loader
    importeert de TTL('s) en stopt.
+5. Zet in de systeem-nginx een server-block dat naar `HTTP_BIND` proxyt (zie
+   hieronder) en herlaad nginx.
 
-Daarna: verkenner op `http://<server>/` (of `https://<domein>/`), SPARQL-endpoint
-op `/sparql`.
+Daarna: verkenner op `https://<domein>/` (via de nginx), SPARQL-endpoint op
+`/sparql`.
+
+## Reverse proxy (systeem-nginx)
+Caddy termineert geen TLS meer; dat doet de nginx op de host. De nginx proxyt
+naar de localhost-poort uit `HTTP_BIND`. Een minimaal server-block:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name lod.gemeentelijkgegevensmodel.nl;
+
+    # ssl_certificate ... ;            # bijv. via certbot / Let's Encrypt
+    # ssl_certificate_key ... ;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;      # = HTTP_BIND
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+De routing binnen de stack (`/sparql` → Virtuoso, rest → frontend) blijft in de
+`Caddyfile`; de nginx hoeft dus maar één `proxy_pass` te kennen. Wil je van
+buitenaf alleen de verkenner en `/sparql` toestaan, dan kan dat ook al in de
+nginx per `location`.
 
 ## Nieuwe GGM-release publiceren
 1. Kopieer de export naar `data/ggm-<versie>.ttl`
@@ -50,8 +81,10 @@ Inpassen: in `docker-compose.yml` bij service `frontend` `build: ./frontend`
 vervangen door `image: <ashkan-image>`, en `FRONTEND_PORT` op zijn poort zetten.
 
 ## Beveiliging
-- Alleen `/sparql` is publiek (via Caddy). Virtuoso's isql (1111) en de
-  Conductor-admin worden niet gepubliceerd; het endpoint is read-only.
+- De stack publiceert alleen Caddy, en standaard alleen op `127.0.0.1`
+  (`HTTP_BIND`), zodat enkel de nginx op de host erbij kan. Virtuoso's isql
+  (1111), de http-poort (8890) en de Conductor-admin blijven intern; naar buiten
+  is alleen `/sparql` bereikbaar en dat endpoint is read-only.
 - `stack.env` met het echte wachtwoord staat in `.gitignore` — niet committen.
 
 ## Let op
