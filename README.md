@@ -10,7 +10,8 @@ praat via Caddy met het read-only SPARQL-endpoint op `/sparql`.
 
 ## Structuur
 - `docker-compose.yml` — virtuoso, loader (one-shot import), frontend, caddy
-- `Caddyfile` — interne routing; alleen `/sparql` publiek (TLS doet de nginx)
+- `caddy/` — Caddy-image (`Dockerfile` + `Caddyfile`); interne routing, alleen
+  `/sparql` publiek (TLS doet de nginx)
 - `loader/load.sh` — importeert `data/*.ttl` in named graphs + `latest`
 - `frontend/` — generieke verkenner (nginx); later inruilbaar voor Ashkans image
 - `data/` — de TTL-exports (`ggm-<versie>.ttl`), meegecommit

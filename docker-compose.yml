@@ -40,17 +40,17 @@ services:
     restart: unless-stopped
 
   caddy:
-    image: caddy:2
+    build: ./caddy
     restart: unless-stopped
     # Draait achter een externe (systeem-)nginx die TLS termineert. Caddy pakt
     # dus GEEN 80/443 en doet GEEN eigen TLS; het luistert plat op :80 en wordt
     # alleen op localhost gepubliceerd, waar nginx naartoe proxyt (HTTP_BIND).
+    # De Caddyfile zit ín het image (caddy/Dockerfile), niet als bind-mount:
+    # een single-file bind-mount uit de gekloonde repo faalt in Portainer.
     ports:
       - "${HTTP_BIND:-127.0.0.1:8000}:80"
     environment:
       FRONTEND_PORT: ${FRONTEND_PORT:-80}
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
 
 volumes:
   virtuoso-data:
