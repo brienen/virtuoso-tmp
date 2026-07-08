@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gemeentelijk Gegevensmodel — Linked Data</title>
+  <!-- Absolute paden: deze pagina wordt ook geserveerd op diepe paden
+       (linked-data dereferencing van /<domein>/<klasse>), zie nginx.conf. -->
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <div class="wrap header-inner">
+      <h1><a href="/">Gemeentelijk Gegevensmodel <span>Linked Data</span></a></h1>
+      <nav>
+        <label for="graph-select" class="visually-hidden">GGM-versie</label>
+        <select id="graph-select" title="GGM-versie"></select>
+        <a href="/query.html">SPARQL-editor</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div id="status" class="status" hidden></div>
+
+    <div id="browser" class="browser" hidden>
+      <aside>
+        <h2>Domeinen</h2>
+        <ul id="domain-list"></ul>
+      </aside>
+      <section>
+        <input id="search" type="search" placeholder="Zoek op naam of definitie…" autocomplete="off">
+        <div id="content"></div>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <p>Generieke verkenner op het SPARQL-endpoint <a href="/sparql"><code>/sparql</code></a>.
+         Elke GGM-release staat in een eigen named graph; <em>latest</em> volgt de meest recente release.</p>
+    </div>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

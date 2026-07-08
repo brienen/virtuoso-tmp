@@ -1,0 +1,123 @@
+:root {
+  --blauw: #1f4e79;
+  --blauw-donker: #163a5b;
+  --accent: #2e7bb8;
+  --tekst: #24292f;
+  --tekst-zacht: #57606a;
+  --rand: #d0d7de;
+  --achtergrond: #f6f8fa;
+  --wit: #ffffff;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: var(--tekst);
+  background: var(--achtergrond);
+  line-height: 1.55;
+}
+
+.wrap { max-width: 1100px; margin: 0 auto; padding: 0 1.25rem; }
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+/* ---------- header ---------- */
+
+header { background: var(--blauw); color: var(--wit); }
+
+.header-inner {
+  display: flex; flex-wrap: wrap; gap: .75rem;
+  align-items: center; justify-content: space-between;
+  padding-top: .9rem; padding-bottom: .9rem;
+}
+
+header h1 { margin: 0; font-size: 1.15rem; font-weight: 600; }
+header h1 a { color: inherit; text-decoration: none; }
+header h1 span { font-weight: 300; opacity: .85; }
+
+header nav { display: flex; align-items: center; gap: 1rem; }
+header nav a { color: var(--wit); text-decoration: none; opacity: .9; }
+header nav a:hover { opacity: 1; text-decoration: underline; }
+
+#graph-select {
+  font: inherit; padding: .3rem .5rem;
+  border-radius: 6px; border: 1px solid var(--blauw-donker);
+  background: var(--wit); color: var(--tekst); max-width: 16rem;
+}
+
+/* ---------- layout ---------- */
+
+main { padding: 1.5rem 0 2.5rem; }
+
+.browser {
+  display: grid; grid-template-columns: 230px 1fr; gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 760px) {
+  .browser { grid-template-columns: 1fr; }
+}
+
+aside h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--tekst-zacht); margin: .25rem 0 .5rem; }
+aside ul { list-style: none; margin: 0; padding: 0; }
+aside li { margin: 0; }
+aside li button {
+  display: flex; justify-content: space-between; gap: .5rem; width: 100%;
+  font: inherit; text-align: left; padding: .25rem .5rem;
+  border: 0; border-radius: 6px; background: none; color: var(--tekst); cursor: pointer;
+}
+aside li button:hover { background: #e7ecf1; }
+aside li button.actief { background: var(--blauw); color: var(--wit); }
+aside li button .aantal { color: var(--tekst-zacht); font-size: .85em; }
+aside li button.actief .aantal { color: #cfe0ef; }
+
+#search {
+  width: 100%; font: inherit; padding: .55rem .8rem; margin-bottom: 1rem;
+  border: 1px solid var(--rand); border-radius: 8px; background: var(--wit);
+}
+#search:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ---------- lijst & detail ---------- */
+
+.status { padding: 1rem; border: 1px solid var(--rand); border-radius: 8px; background: var(--wit); }
+.status.fout { border-color: #d1242f; background: #fff5f5; }
+
+.kaart {
+  background: var(--wit); border: 1px solid var(--rand); border-radius: 8px;
+  padding: .8rem 1rem; margin-bottom: .6rem; cursor: pointer;
+}
+.kaart:hover { border-color: var(--accent); }
+.kaart h3 { margin: 0 0 .15rem; font-size: 1rem; }
+.kaart h3 a { color: var(--blauw); text-decoration: none; }
+.kaart .domein-chip { font-size: .75rem; color: var(--tekst-zacht); }
+.kaart p { margin: .3rem 0 0; font-size: .9rem; color: var(--tekst-zacht); }
+
+.detail { background: var(--wit); border: 1px solid var(--rand); border-radius: 8px; padding: 1.25rem 1.5rem; }
+.detail .terug { display: inline-block; margin-bottom: .75rem; color: var(--accent); text-decoration: none; }
+.detail h2 { margin: 0 0 .25rem; }
+.detail .domein-chip {
+  display: inline-block; font-size: .75rem; padding: .1rem .55rem;
+  border-radius: 999px; background: #e7ecf1; color: var(--tekst-zacht);
+}
+.detail .uri { font-size: .8rem; color: var(--tekst-zacht); word-break: break-all; margin: .5rem 0 1rem; }
+.detail .definitie { margin: 0 0 1rem; }
+
+.detail h3 { font-size: .95rem; margin: 1.25rem 0 .5rem; }
+.detail table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.detail th, .detail td { text-align: left; padding: .35rem .5rem; border-bottom: 1px solid var(--rand); vertical-align: top; }
+.detail th { color: var(--tekst-zacht); font-weight: 600; white-space: nowrap; }
+.detail td a { color: var(--blauw); }
+.detail .leeg { color: var(--tekst-zacht); font-size: .9rem; }
+
+.telling { color: var(--tekst-zacht); font-size: .85rem; margin: 0 0 .75rem; }
+
+/* ---------- footer ---------- */
+
+footer { border-top: 1px solid var(--rand); background: var(--wit); }
+footer p { font-size: .85rem; color: var(--tekst-zacht); padding: 1rem 0; margin: 0; }
+footer a { color: var(--blauw); }

@@ -1,0 +1,3 @@
+# Echte configuratie met wachtwoord niet committen; alleen stack.env.example.
+stack.env
+.env

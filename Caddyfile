@@ -1,0 +1,15 @@
+# {$SITE_ADDRESS} en {$FRONTEND_PORT} komen uit de container-env (docker-compose).
+# ':80' -> platte HTTP (handig voor testen via IP). Een echt domein -> Caddy
+# regelt automatisch een Let's Encrypt-certificaat.
+{$SITE_ADDRESS} {
+	encode gzip
+
+	# Alleen het SPARQL-endpoint van Virtuoso is publiek (standaard read-only).
+	handle /sparql* {
+		reverse_proxy virtuoso:8890
+	}
+
+	handle {
+		reverse_proxy frontend:{$FRONTEND_PORT}
+	}
+}

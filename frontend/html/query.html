@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SPARQL-editor — Gemeentelijk Gegevensmodel</title>
+  <link rel="stylesheet" href="/style.css">
+  <!-- YASGUI via CDN; alleen deze pagina heeft internet in de browser nodig. -->
+  <link rel="stylesheet" href="https://unpkg.com/@triply/yasgui/build/yasgui.min.css">
+  <style>
+    .yasgui .autocompleteWrapper { display: none !important; }
+    #yasgui { margin: 1rem 0 2rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap header-inner">
+      <h1><a href="/">Gemeentelijk Gegevensmodel <span>Linked Data</span></a></h1>
+      <nav><a href="/">Verkenner</a></nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div id="yasgui"></div>
+  </main>
+
+  <script src="https://unpkg.com/@triply/yasgui/build/yasgui.min.js"></script>
+  <script>
+    Yasgui.Yasqe.defaults.value = `PREFIX owl:  <http://www.w3.org/2002/07/owl#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+# Alle klassen in de meest recente GGM-release.
+# Vervang 'latest' door bijv. 'v2.5.1' voor een specifieke versie,
+# of vraag de beschikbare graphs op met:
+#   SELECT DISTINCT ?g WHERE { GRAPH ?g { ?s ?p ?o } }
+SELECT ?klasse ?label ?definitie
+WHERE {
+  GRAPH <https://lod.gemeentelijkgegevensmodel.nl/graph/latest> {
+    ?klasse a owl:Class ; rdfs:label ?label .
+    OPTIONAL { ?klasse rdfs:comment ?definitie }
+  }
+}
+ORDER BY ?label`;
+
+    new Yasgui(document.getElementById("yasgui"), {
+      requestConfig: { endpoint: location.origin + "/sparql" },
+      copyEndpointOnNewTab: true,
+    });
+  </script>
+</body>
+</html>
