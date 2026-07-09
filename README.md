@@ -12,9 +12,11 @@ praat via Caddy met het read-only SPARQL-endpoint op `/sparql`.
 - `docker-compose.yml` — virtuoso, loader (one-shot import), frontend, caddy
 - `caddy/` — Caddy-image (`Dockerfile` + `Caddyfile`); interne routing, alleen
   `/sparql` publiek (TLS doet de nginx)
-- `loader/load.sh` — importeert `data/*.ttl` in named graphs + `latest`
+- `loader/` — loader-image (`Dockerfile` + `load.sh`) dat `data/*.ttl` in named
+  graphs + `latest` importeert
 - `frontend/` — generieke verkenner (nginx); later inruilbaar voor Ashkans image
-- `data/` — de TTL-exports (`ggm-<versie>.ttl`), meegecommit
+- `data/` — de TTL-exports (`ggm-<versie>.ttl`), meegecommit én in het
+  loader-image gebakken
 - `stack.env.example` — sjabloon voor de Portainer-env-vars
 
 ## Deployen in Portainer
@@ -90,6 +92,12 @@ vervangen door `image: <ashkan-image>`, en `FRONTEND_PORT` op zijn poort zetten.
 - `stack.env` met het echte wachtwoord staat in `.gitignore` — niet committen.
 
 ## Let op
+- **Geen bind-mounts van repo-inhoud.** Portainer draait zelf in een container,
+  waardoor de gekloonde stackbestanden niet op de host-FS staan waar de
+  Docker-daemon bind-mounts oplost. Daarom wordt alle repo-inhoud (Caddyfile,
+  `load.sh`, de TTL's) ín de images gebakken via `build:`, en gaat de data via
+  het named volume `ggm-data` naar Virtuoso. Voeg dus geen `./iets:/iets`
+  host-mounts toe — die blijven leeg.
 - De loader herlaadt bij elke redeploy alle TTL's in `data/` (idempotent: CLEAR +
   load). Bij veel opgehoopte versies loopt de deploytijd op; ruim dan oude TTL's
   op of breid de loader uit met een "sla over als graph al gevuld is"-check.

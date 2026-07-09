@@ -1,7 +1,9 @@
 #!/bin/sh
-# Importeert alle TTL-bestanden uit /data in named graphs en ververst 'latest'.
-# Draait als one-shot container bij elke (re)deploy van de stack. Idempotent:
-# elke graph wordt eerst geleegd en opnieuw geladen.
+# Importeert alle TTL-bestanden in named graphs en ververst 'latest'. Draait als
+# one-shot container bij elke (re)deploy. De TTL's zitten in het image (/seed) en
+# worden naar het gedeelde volume /data gekopieerd, dat Virtuoso ook mount; daar
+# leest file_to_string_output ze. Idempotent: elke graph wordt eerst geleegd en
+# opnieuw geladen.
 set -eu
 
 : "${DBA_PASSWORD:?DBA_PASSWORD ontbreekt}"
@@ -9,6 +11,13 @@ GRAPH_BASE="${GRAPH_BASE:-https://lod.gemeentelijkgegevensmodel.nl/graph}"
 HOST="${VIRTUOSO_HOST:-virtuoso}:1111"
 
 isql_run() { isql "$HOST" dba "$DBA_PASSWORD"; }
+
+# De in het image gebakken TTL's naar het gedeelde volume dat Virtuoso ook mount.
+# Eerst legen zodat verwijderde releases niet blijven staan.
+echo "loader: TTL-data uit image naar gedeeld volume /data kopiëren"
+mkdir -p /data
+rm -f /data/*.ttl
+cp /seed/*.ttl /data/ 2>/dev/null || true
 
 echo "loader: wachten tot Virtuoso bereikbaar is op $HOST ..."
 i=0
