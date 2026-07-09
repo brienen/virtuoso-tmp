@@ -16,7 +16,7 @@ services:
       # De dropmap: een ABSOLUUT host-pad waar de TTL's via rsync belanden.
       # Absolute host-paden mogen wél als bind-mount (anders dan repo-relatieve
       # './data'). Virtuoso leest ze via file_to_string_output; lod-watch laadt ze.
-      - ${LOD_HOST_DIR:-/srv/ggm-lod}:/data:ro
+      - ${LOD_HOST_DIR:-/home/gemeentelijkgegevensmodel-lod/ggm-lod}:/data:ro
     # Poorten 1111 (isql) en 8890 (http) blijven intern; alleen Caddy geeft
     # /sparql publiek door. Bewust geen 'ports:' hier.
 
@@ -35,7 +35,7 @@ services:
       VIRTUOSO_HOST: virtuoso
       WATCH_INTERVAL: ${WATCH_INTERVAL:-20}
     volumes:
-      - ${LOD_HOST_DIR:-/srv/ggm-lod}:/data:ro
+      - ${LOD_HOST_DIR:-/home/gemeentelijkgegevensmodel-lod/ggm-lod}:/data:ro
       - lod-state:/state
 
   # Generieke verkenner. Later inruilen voor de frontend van Ashkan:

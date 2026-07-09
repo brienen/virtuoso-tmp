@@ -24,12 +24,14 @@ De data zit **niet** in de repo of de images: die komt via rsync in de dropmap
 (`LOD_HOST_DIR` op de host).
 
 ## Deployen in Portainer
-1. Maak op de server de **dropmap** aan en zet de rechten goed:
+1. Maak op de server de **dropmap** aan en zet de rechten goed. Dit is de map
+   waar de rsync-user (`ggm-lod`) naartoe schrijft:
    ```bash
-   sudo mkdir -p /srv/ggm-lod && sudo chmod 755 /srv/ggm-lod
+   sudo mkdir -p /home/gemeentelijkgegevensmodel-lod/ggm-lod
+   sudo chmod 755 /home/gemeentelijkgegevensmodel-lod/ggm-lod
    ```
    (De container leest de map read-only; bestanden moeten `644` zijn — dat regelt
-   de rsync-taak in de GGM-repo.)
+   de rsync-taak in de GGM-repo. `LOD_HOST_DIR` moet dit pad zijn.)
 2. Push deze repo naar GitHub/GitLab.
 3. Portainer → **Stacks → Add stack** → build method **Repository**.
    - Repository URL: deze repo
