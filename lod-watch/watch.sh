@@ -32,12 +32,23 @@ wacht_op_virtuoso() {
   return 0
 }
 
-laad() {  # $1 = graph-URI, $2 = bestandsnaam in /data
-  isql_run <<SQL
+laad() {  # $1 = graph-URI, $2 = bestandsnaam in /data.
+          # Retourneert !=0 bij een SQL-fout (bijv. leesrechten), zodat een
+          # mislukte load NIET als 'gedaan' wordt weggeschreven en de volgende
+          # ronde 'm opnieuw probeert.
+  set +e
+  uit=$(isql_run <<SQL 2>&1
 SPARQL CLEAR GRAPH <$1>;
 DB.DBA.TTLP_MT(file_to_string_output('/data/$2'), '', '$1');
 checkpoint;
 SQL
+)
+  set -e
+  printf '%s\n' "$uit"
+  case "$uit" in
+    *"*** Error"*) return 1 ;;
+  esac
+  return 0
 }
 
 ververs_latest() {
