@@ -19,17 +19,22 @@ mkdir -p /data
 rm -f /data/*.ttl
 cp /seed/*.ttl /data/ 2>/dev/null || true
 
-echo "loader: wachten tot Virtuoso bereikbaar is op $HOST ..."
+echo "loader: wachten tot Virtuoso (isql) bereikbaar is op $HOST ..."
 i=0
+max=100   # ~5 min: ruim genoeg voor de eerste boot van een lege database
 until echo "status();" | isql "$HOST" dba "$DBA_PASSWORD" >/dev/null 2>&1; do
   i=$((i + 1))
-  if [ "$i" -gt 60 ]; then
-    echo "loader: Virtuoso niet bereikbaar na ~3 min, stop." >&2
+  if [ "$i" -ge "$max" ]; then
+    echo "loader: Virtuoso niet bereikbaar via isql na ~5 min. Laatste melding:" >&2
+    echo "status();" | isql "$HOST" dba "$DBA_PASSWORD" 2>&1 | sed 's/^/loader:   /' >&2 || true
+    echo "loader: hint: 'Bad login'/SQ074 = DBA_PASSWORD past niet bij de" >&2
+    echo "loader:   bestaande virtuoso-data; 'Connection refused' = poort 1111" >&2
+    echo "loader:   nog niet open (Virtuoso nog aan het opstarten)." >&2
     exit 1
   fi
   sleep 3
 done
-echo "loader: Virtuoso is bereikbaar."
+echo "loader: Virtuoso is bereikbaar via isql."
 
 latest_file=""
 for f in $(ls /data/*.ttl 2>/dev/null | sort -V); do
