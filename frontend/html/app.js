@@ -11,12 +11,67 @@ PREFIX owl:  <http://www.w3.org/2002/07/owl#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 `;
 
+// ---------- curated domein-indeling ----------
+// De LOD-export bevat geen deelmodel-hiërarchie; deze mapping groepeert de
+// deelmodellen (het eerste pad-segment) onder een hoofddomein. Handmatig
+// onderhouden: pas aan/vul aan; onbekende deelmodellen vallen onder "Overig".
+const DOMEIN_MAP = {
+  "kern rsgb": "Kern", "kern rgbz": "Kern", "bag": "Kern", "generiek": "Kern",
+  "werk": "Sociaal domein", "inkomen": "Sociaal domein", "inkomsten": "Sociaal domein",
+  "inburgering": "Sociaal domein", "jeugd en wmo generiek": "Sociaal domein",
+  "jeugdbescherming": "Sociaal domein", "schuldhulpverlening": "Sociaal domein",
+  "sociaal domein generiek": "Sociaal domein", "sociale teams": "Sociaal domein",
+  "leerplicht en leerlingenvervoer": "Sociaal domein", "onderwijs": "Sociaal domein",
+  "dak- en thuislozen": "Sociaal domein", "vroegsignalering": "Sociaal domein",
+  "reden aanvraag": "Sociaal domein", "gemeentebegrafenissen": "Sociaal domein",
+  "vastgoed": "Fysiek domein", "vth": "Fysiek domein", "omgevingswet": "Fysiek domein",
+  "beheer openbare ruimte": "Fysiek domein", "imbor": "Fysiek domein",
+  "archeologie": "Fysiek domein", "monumenten": "Fysiek domein",
+  "erfgoed generiek": "Fysiek domein", "wonen": "Fysiek domein",
+  "mobiliteit": "Fysiek domein", "parkeren": "Fysiek domein", "afval": "Fysiek domein",
+  "toepasbare regels": "Fysiek domein",
+  "hr": "Bedrijfsvoering", "ict": "Bedrijfsvoering", "financien": "Bedrijfsvoering",
+  "inkoop": "Bedrijfsvoering", "archief": "Bedrijfsvoering", "griffie": "Bedrijfsvoering",
+  "terug- en invordering": "Bedrijfsvoering", "vermogen": "Bedrijfsvoering",
+  "subsidies": "Bedrijfsvoering", "organisatie": "Bedrijfsvoering", "economie": "Bedrijfsvoering",
+  "dienstverlening": "Dienstverlening", "diensten": "Dienstverlening",
+  "aanvragen en meldingen": "Dienstverlening", "officiele publicaties": "Dienstverlening",
+  "musea": "Cultuur & sport", "sport": "Cultuur & sport",
+  "groepattribuutsoort": "Technisch", "referentielijsten": "Technisch",
+  "complex datatype": "Technisch", "datatypes": "Technisch", "diagram": "Technisch",
+  "normafwijking": "Technisch", "relatieklasse": "Technisch", "union": "Technisch",
+  "tekenwijze": "Technisch", "metagegevens": "Technisch", "semantische relaties": "Technisch",
+  "view (zaak)objecten": "Technisch", "view betrokkene": "Technisch",
+};
+
+const HOOFDDOMEIN_VOLGORDE = [
+  "Kern", "Sociaal domein", "Fysiek domein", "Bedrijfsvoering",
+  "Dienstverlening", "Cultuur & sport", "Overig", "Technisch",
+];
+
+// Kleur per hoofddomein voor de relatiegraaf: [achtergrond, tekst].
+const HOOFDDOMEIN_KLEUR = {
+  "Kern": ["#e7ecf1", "#1f4e79"],
+  "Sociaal domein": ["#e6f0e8", "#2f6b3a"],
+  "Fysiek domein": ["#f1e9da", "#8a5a1a"],
+  "Bedrijfsvoering": ["#e0eeec", "#1f6b6b"],
+  "Dienstverlening": ["#efe6ef", "#7a4a7a"],
+  "Cultuur & sport": ["#f5e7ea", "#9c3a58"],
+  "Overig": ["#eceef0", "#57606a"],
+  "Technisch": ["#eceef0", "#57606a"],
+};
+
+function hoofddomeinVan(deelmodel) {
+  return DOMEIN_MAP[deelmodel] || "Overig";
+}
+
 const state = {
   graphs: [],   // {uri, naam, triples}
   graph: null,  // gekozen graph-URI
   klassen: [],  // {uri, label, definitie, domein, pad}
-  domein: null, // actief domeinfilter
+  domein: null, // actief deelmodelfilter
   term: "",     // zoekterm
+  open: new Set(), // uitgeklapte hoofddomeinen
 };
 
 // ---------- SPARQL ----------
@@ -50,6 +105,10 @@ function padVan(uri) {
 function domeinVan(uri) {
   const delen = padVan(uri).split("/");
   return delen.length > 2 ? decodeURIComponent(delen[1]) : "";
+}
+
+function labelVanUri(u) {
+  return decodeURIComponent(padVan(u).split("/").pop());
 }
 
 function graphNaam(uri) {
@@ -138,31 +197,65 @@ async function laadKlassen() {
 
   verbergStatus();
   $("#browser").hidden = false;
-  renderDomeinen();
+  renderBoom();
 }
 
-// ---------- lijstweergave ----------
+// ---------- navigatie: hiërarchische boom (hoofddomein → deelmodel) ----------
 
-function renderDomeinen() {
+function renderBoom() {
   const telling = new Map();
-  for (const k of state.klassen) {
-    telling.set(k.domein, (telling.get(k.domein) || 0) + 1);
+  for (const k of state.klassen) telling.set(k.domein, (telling.get(k.domein) || 0) + 1);
+
+  const groepen = new Map(); // hoofddomein → [{deel, aantal}]
+  for (const [deel, aantal] of telling) {
+    const hd = hoofddomeinVan(deel);
+    if (!groepen.has(hd)) groepen.set(hd, []);
+    groepen.get(hd).push({ deel, aantal });
   }
-  const domeinen = [...telling.keys()].sort((a, b) => a.localeCompare(b));
+  for (const arr of groepen.values()) arr.sort((a, b) => a.deel.localeCompare(b.deel));
 
-  const li = (naam, aantal, waarde) =>
-    `<li><button data-domein="${esc(waarde ?? "")}" class="${state.domein === waarde ? "actief" : ""}">
-       <span>${esc(naam)}</span><span class="aantal">${aantal}</span></button></li>`;
+  const volgorde = HOOFDDOMEIN_VOLGORDE.filter((h) => groepen.has(h))
+    .concat([...groepen.keys()].filter((h) => !HOOFDDOMEIN_VOLGORDE.includes(h)));
 
-  $("#domain-list").innerHTML =
-    li("Alle domeinen", state.klassen.length, null) +
-    domeinen.map((d) => li(d || "(zonder domein)", telling.get(d), d)).join("");
+  const totaal = (arr) => arr.reduce((s, x) => s + x.aantal, 0);
 
-  for (const btn of document.querySelectorAll("#domain-list button")) {
-    btn.onclick = () => {
-      state.domein = btn.dataset.domein || null;
-      renderDomeinen();
-      toonLijst(true);
+  let html = `<button class="boom-alle ${state.domein ? "" : "actief"}" data-alle="1">
+      <span>Alle klassen</span><span class="aantal">${state.klassen.length}</span></button>`;
+
+  for (const hd of volgorde) {
+    const arr = groepen.get(hd);
+    const open = state.open.has(hd);
+    html += `<div class="boom-groep">
+      <button class="boom-kop" data-groep="${esc(hd)}" aria-expanded="${open}">
+        <span class="chevron">${open ? "▾" : "▸"}</span>
+        <span class="naam">${esc(hd)}</span>
+        <span class="aantal">${totaal(arr)}</span>
+      </button>`;
+    if (open) {
+      html += arr.map((x) =>
+        `<button class="boom-deel ${state.domein === x.deel ? "actief" : ""}" data-deel="${esc(x.deel)}">
+           <span>${esc(x.deel || "(zonder deelmodel)")}</span><span class="aantal">${x.aantal}</span>
+         </button>`).join("");
+    }
+    html += `</div>`;
+  }
+  $("#domain-list").innerHTML = html;
+
+  $("#domain-list").querySelector(".boom-alle").onclick = () => {
+    state.domein = null; renderBoom(); toonLijst(true);
+  };
+  for (const b of document.querySelectorAll("#domain-list .boom-kop")) {
+    b.onclick = () => {
+      const hd = b.dataset.groep;
+      state.open.has(hd) ? state.open.delete(hd) : state.open.add(hd);
+      renderBoom();
+    };
+  }
+  for (const b of document.querySelectorAll("#domain-list .boom-deel")) {
+    b.onclick = () => {
+      state.domein = b.dataset.deel;
+      state.open.add(hoofddomeinVan(state.domein));
+      renderBoom(); toonLijst(true);
     };
   }
 }
@@ -178,7 +271,8 @@ function toonLijst(push = false) {
   if (push && location.pathname !== "/") history.pushState(null, "", "/");
   const lijst = gefilterd();
   $("#content").innerHTML =
-    `<p class="telling">${lijst.length} van ${state.klassen.length} klassen</p>` +
+    `<p class="telling">${lijst.length} van ${state.klassen.length} klassen` +
+    (state.domein ? ` · ${esc(state.domein)}` : "") + `</p>` +
     lijst.map((k) => `
       <article class="kaart" data-uri="${esc(k.uri)}">
         <h3><a href="${esc(k.pad)}">${esc(k.label)}</a></h3>
@@ -194,6 +288,75 @@ function toonLijst(push = false) {
   }
 }
 
+// ---------- relatiegraaf (buurtgraaf per klasse) ----------
+
+function buurtgraaf(klasse, uit, inn) {
+  const nb = new Map();
+  const add = (uri, label, rel, dir) => {
+    if (!nb.has(uri)) nb.set(uri, { uri, label, domein: domeinVan(uri), out: [], in: [] });
+    nb.get(uri)[dir].push(rel);
+  };
+  for (const r of uit) add(r.doel.value, r.doelLabel ? r.doelLabel.value : labelVanUri(r.doel.value), r.label.value, "out");
+  for (const r of inn) add(r.bron.value, r.bronLabel ? r.bronLabel.value : labelVanUri(r.bron.value), r.label.value, "in");
+
+  const alle = [...nb.values()];
+  if (!alle.length) return "";
+
+  const CAP = 16;
+  const meer = alle.length - CAP;
+  const nodes = alle.slice(0, CAP);
+
+  const W = 680, H = 420, cx = W / 2, cy = H / 2, rx = W / 2 - 92, ry = H / 2 - 52;
+  const toonLabels = nodes.length <= 9;
+
+  const box = (x, y, label, fill, txt, bold, uri) => {
+    const w = Math.max(58, Math.min(152, label.length * 7 + 16));
+    const kort = label.length > 22 ? label.slice(0, 21) + "…" : label;
+    const kl = uri ? ` class="knoop" data-uri="${esc(uri)}"` : ` class="knoop-vast"`;
+    return `<g${kl}>` +
+      `<rect x="${(x - w / 2).toFixed(1)}" y="${(y - 15).toFixed(1)}" width="${w}" height="30" rx="7" ` +
+      `fill="${fill}" stroke="${bold ? txt : "#d0d7de"}" stroke-width="${bold ? 1.5 : 0.7}"/>` +
+      `<text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}" font-size="11" text-anchor="middle" ` +
+      `fill="${txt}"${bold ? ' font-weight="600"' : ""}>${esc(kort)}</text></g>`;
+  };
+
+  let edges = "", labels = "", boxes = "";
+  nodes.forEach((n, i) => {
+    const th = -Math.PI / 2 + (i / nodes.length) * 2 * Math.PI;
+    const x = cx + rx * Math.cos(th), y = cy + ry * Math.sin(th);
+    const mx = ((cx + x) / 2).toFixed(1), my = ((cy + y) / 2).toFixed(1);
+    if (n.out.length)
+      edges += `<polyline points="${cx},${cy} ${mx},${my} ${x.toFixed(1)},${y.toFixed(1)}" fill="none" stroke="#c1cad3" stroke-width="1.3" marker-mid="url(#pijl)"/>`;
+    if (n.in.length)
+      edges += `<polyline points="${x.toFixed(1)},${y.toFixed(1)} ${mx},${my} ${cx},${cy}" fill="none" stroke="#c1cad3" stroke-width="1.3" marker-mid="url(#pijl)"/>`;
+    if (toonLabels) {
+      const rel = [...new Set([...n.out, ...n.in])].join(", ");
+      const rk = rel.length > 22 ? rel.slice(0, 21) + "…" : rel;
+      labels += `<text x="${mx}" y="${(my - 3)}" font-size="11" text-anchor="middle" fill="#57606a">${esc(rk)}</text>`;
+    }
+    const bekend = state.klassen.some((k) => k.uri === n.uri);
+    const [bg, tx] = HOOFDDOMEIN_KLEUR[hoofddomeinVan(n.domein)] || HOOFDDOMEIN_KLEUR["Overig"];
+    boxes += box(x, y, n.label, bg, tx, false, bekend ? n.uri : null);
+  });
+
+  const svg = `<svg viewBox="0 0 ${W} ${H}" class="graaf" role="img" aria-label="Relatiegraaf van ${esc(klasse.label)}">
+      <defs><marker id="pijl" markerWidth="9" markerHeight="9" refX="4" refY="3" orient="auto">
+        <path d="M0,0 L7,3 L0,6 Z" fill="#8a97a5"/></marker></defs>
+      ${edges}${labels}${boxes}${box(cx, cy, klasse.label, "#1f4e79", "#ffffff", true, null)}
+    </svg>`;
+
+  const hdSet = new Set([hoofddomeinVan(klasse.domein), ...alle.map((n) => hoofddomeinVan(n.domein))]);
+  const legenda = `<div class="graaf-legenda">` + [...hdSet].sort().map((hd) => {
+    const [bg, tx] = HOOFDDOMEIN_KLEUR[hd] || HOOFDDOMEIN_KLEUR["Overig"];
+    return `<span><span class="swatch" style="background:${bg};border-color:${tx}"></span>${esc(hd)}</span>`;
+  }).join("") + `</div>`;
+
+  const noot = meer > 0
+    ? `<p class="graaf-noot">+${meer} klassen niet getekend — zie de tabellen hieronder.</p>` : "";
+
+  return svg + legenda + noot;
+}
+
 // ---------- detailweergave ----------
 
 async function toonDetail(uri, push = false) {
@@ -203,7 +366,7 @@ async function toonDetail(uri, push = false) {
 
   $("#content").innerHTML = `<div class="detail"><p>Laden…</p></div>`;
 
-  const [attrs, uit, inn] = await Promise.all([
+  const [attrs, uit, inn, supers, subs] = await Promise.all([
     sparql(`
       SELECT ?label ?range ?definitie WHERE {
         GRAPH <${state.graph}> {
@@ -226,11 +389,25 @@ async function toonDetail(uri, push = false) {
           OPTIONAL { ?bron rdfs:label ?bronLabel }
         }
       } ORDER BY ?label`),
+    sparql(`
+      SELECT ?super ?superLabel WHERE {
+        GRAPH <${state.graph}> {
+          <${uri}> rdfs:subClassOf ?super . FILTER(?super != <${uri}>)
+          OPTIONAL { ?super rdfs:label ?superLabel }
+        }
+      } ORDER BY ?superLabel`),
+    sparql(`
+      SELECT ?sub ?subLabel WHERE {
+        GRAPH <${state.graph}> {
+          ?sub rdfs:subClassOf <${uri}> . FILTER(?sub != <${uri}>)
+          OPTIONAL { ?sub rdfs:label ?subLabel }
+        }
+      } ORDER BY ?subLabel`),
   ]);
 
   const klasseLink = (u, lbl) => {
     const bekend = state.klassen.find((k) => k.uri === u);
-    const naam = lbl || (bekend ? bekend.label : decodeURIComponent(padVan(u).split("/").pop()));
+    const naam = lbl || (bekend ? bekend.label : labelVanUri(u));
     return bekend
       ? `<a href="${esc(bekend.pad)}" data-uri="${esc(u)}">${esc(naam)}</a>`
       : esc(naam);
@@ -242,6 +419,15 @@ async function toonDetail(uri, push = false) {
     ? `<table><thead><tr>${kop}</tr></thead><tbody>${rijen.join("")}</tbody></table>`
     : `<p class="leeg">${leeg}</p>`;
 
+  const graafHtml = buurtgraaf(klasse, uit, inn);
+
+  const overerving = (supers.length || subs.length) ? `
+      <h3>Overerving</h3>
+      <table><tbody>
+        ${supers.length ? `<tr><th>is een</th><td>${supers.map((r) => "↑ " + klasseLink(r.super.value, r.superLabel ? r.superLabel.value : null)).join("<br>")}</td></tr>` : ""}
+        ${subs.length ? `<tr><th>subtypes</th><td>${subs.map((r) => "↓ " + klasseLink(r.sub.value, r.subLabel ? r.subLabel.value : null)).join("<br>")}</td></tr>` : ""}
+      </tbody></table>` : "";
+
   $("#content").innerHTML = `
     <div class="detail">
       <a href="/" class="terug">← Alle klassen</a>
@@ -250,25 +436,28 @@ async function toonDetail(uri, push = false) {
       <p class="uri"><code>${esc(uri)}</code></p>
       ${klasse.definitie ? `<p class="definitie">${esc(klasse.definitie)}</p>` : ""}
 
+      ${graafHtml ? `<h3>Relatiegraaf</h3><div class="graaf-wrap">${graafHtml}</div>` : ""}
+      ${overerving}
+
       <h3>Attributen (${attrs.length})</h3>
       ${tabel(
         attrs.map((r) => `<tr><th>${esc(r.label.value)}</th>` +
-          `<td>${esc(xsdNaam(r.range?.value))}</td>` +
-          `<td>${esc(r.definitie?.value || "")}</td></tr>`),
+          `<td>${esc(xsdNaam(r.range ? r.range.value : ""))}</td>` +
+          `<td>${esc(r.definitie ? r.definitie.value : "")}</td></tr>`),
         "<th>naam</th><th>type</th><th>definitie</th>",
         "Geen attributen.")}
 
       <h3>Relaties — uitgaand (${uit.length})</h3>
       ${tabel(
         uit.map((r) => `<tr><th>${esc(r.label.value)}</th>` +
-          `<td>→ ${klasseLink(r.doel.value, r.doelLabel?.value)}</td></tr>`),
+          `<td>→ ${klasseLink(r.doel.value, r.doelLabel ? r.doelLabel.value : null)}</td></tr>`),
         "<th>relatie</th><th>naar</th>",
         "Geen uitgaande relaties.")}
 
       <h3>Relaties — inkomend (${inn.length})</h3>
       ${tabel(
         inn.map((r) => `<tr><th>${esc(r.label.value)}</th>` +
-          `<td>← ${klasseLink(r.bron.value, r.bronLabel?.value)}</td></tr>`),
+          `<td>← ${klasseLink(r.bron.value, r.bronLabel ? r.bronLabel.value : null)}</td></tr>`),
         "<th>relatie</th><th>van</th>",
         "Geen inkomende relaties.")}
     </div>`;
@@ -276,6 +465,9 @@ async function toonDetail(uri, push = false) {
   $(".detail .terug").onclick = (e) => { e.preventDefault(); toonLijst(true); };
   for (const a of document.querySelectorAll(".detail a[data-uri]")) {
     a.onclick = (e) => { e.preventDefault(); toonDetail(a.dataset.uri, true); };
+  }
+  for (const g of document.querySelectorAll(".graaf .knoop")) {
+    g.onclick = () => toonDetail(g.dataset.uri, true);
   }
 }
 

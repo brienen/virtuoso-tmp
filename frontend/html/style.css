@@ -121,3 +121,33 @@ aside li button.actief .aantal { color: #cfe0ef; }
 footer { border-top: 1px solid var(--rand); background: var(--wit); }
 footer p { font-size: .85rem; color: var(--tekst-zacht); padding: 1rem 0; margin: 0; }
 footer a { color: var(--blauw); }
+
+/* ---------- navigatieboom (hoofddomein → deelmodel) ---------- */
+
+#domain-list { display: flex; flex-direction: column; }
+.boom-alle, .boom-kop, .boom-deel {
+  display: flex; align-items: center; gap: .4rem; width: 100%;
+  font: inherit; text-align: left; border: 0; background: none; cursor: pointer;
+  border-radius: 6px; color: var(--tekst); padding: .3rem .5rem;
+}
+.boom-alle { font-weight: 600; margin-bottom: .35rem; }
+.boom-alle span:first-child, .boom-kop .naam { flex: 1; }
+.boom-kop { font-weight: 600; }
+.boom-kop .chevron { width: .9em; color: var(--tekst-zacht); font-size: .8em; }
+.boom-deel { padding-left: 1.7rem; font-weight: 400; }
+.boom-deel span:first-child { flex: 1; }
+.boom-alle:hover, .boom-kop:hover, .boom-deel:hover { background: #e7ecf1; }
+.boom-alle.actief, .boom-deel.actief { background: var(--blauw); color: var(--wit); }
+.boom-alle .aantal, .boom-kop .aantal, .boom-deel .aantal { color: var(--tekst-zacht); font-size: .85em; }
+.boom-alle.actief .aantal, .boom-deel.actief .aantal { color: #cfe0ef; }
+.boom-groep { margin-bottom: .1rem; }
+
+/* ---------- relatiegraaf ---------- */
+
+.graaf-wrap { border: 1px solid var(--rand); border-radius: 8px; background: #fbfcfd; padding: .5rem .5rem .25rem; margin-bottom: 1rem; }
+.graaf { width: 100%; height: auto; display: block; }
+.graaf .knoop { cursor: pointer; }
+.graaf .knoop:hover rect { stroke: var(--accent); stroke-width: 1.5; }
+.graaf-legenda { display: flex; flex-wrap: wrap; gap: .3rem .9rem; padding: .5rem .2rem 0; font-size: .8rem; color: var(--tekst-zacht); }
+.graaf-legenda .swatch { display: inline-block; width: .8em; height: .8em; border-radius: 3px; border: 1px solid; margin-right: .3rem; vertical-align: -1px; }
+.graaf-noot { font-size: .8rem; color: var(--tekst-zacht); margin: .35rem .2rem 0; }
