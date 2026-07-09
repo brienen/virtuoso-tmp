@@ -25,7 +25,7 @@ De data zit **niet** in de repo of de images: die komt via rsync in de dropmap
 
 ## Deployen in Portainer
 1. Maak op de server de **dropmap** aan en zet de rechten goed. Dit is de map
-   waar de rsync-user (`ggm-lod`) naartoe schrijft:
+   waar de rsync-user (ssh-profiel `lod-ggm`) naartoe schrijft:
    ```bash
    sudo mkdir -p /home/gemeentelijkgegevensmodel-lod/ggm-lod
    sudo chmod 755 /home/gemeentelijkgegevensmodel-lod/ggm-lod
