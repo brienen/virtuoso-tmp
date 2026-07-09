@@ -48,7 +48,7 @@ services:
     # De Caddyfile zit ín het image (caddy/Dockerfile), niet als bind-mount:
     # een single-file bind-mount uit de gekloonde repo faalt in Portainer.
     ports:
-      - "${HTTP_BIND:-127.0.0.1:8000}:80"
+      - "${HTTP_BIND:-127.0.0.1:8080}:80"
     environment:
       FRONTEND_PORT: ${FRONTEND_PORT:-80}
 

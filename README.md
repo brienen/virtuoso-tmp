@@ -26,7 +26,8 @@ praat via Caddy met het read-only SPARQL-endpoint op `/sparql`.
    - Compose path: `docker-compose.yml`
 3. Onder **Environment variables** de waarden uit `stack.env.example` invullen —
    in elk geval `DBA_PASSWORD`. `HTTP_BIND` bepaalt waar Caddy op de host
-   luistert (standaard `127.0.0.1:8000`); daar proxyt de nginx naartoe.
+   luistert (standaard `127.0.0.1:8080`); daar proxyt de nginx naartoe. Kies een
+   poort die vrij is — Portainer zelf gebruikt al 8000/9000/9443.
 4. **Deploy the stack**. Portainer bouwt de frontend en start alles; de loader
    importeert de TTL('s) en stopt.
 5. Zet in de systeem-nginx een server-block dat naar `HTTP_BIND` proxyt (zie
@@ -48,7 +49,7 @@ server {
     # ssl_certificate_key ... ;
 
     location / {
-        proxy_pass http://127.0.0.1:8000;      # = HTTP_BIND
+        proxy_pass http://127.0.0.1:8080;      # = HTTP_BIND
         proxy_set_header Host              $host;
         proxy_set_header X-Real-IP         $remote_addr;
         proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
