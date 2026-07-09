@@ -1,4 +1,0 @@
-# Build-context van de loader is de repo-root; hou 'm klein en zonder secrets.
-.git
-stack.env
-.env

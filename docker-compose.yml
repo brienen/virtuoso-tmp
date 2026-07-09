@@ -13,30 +13,30 @@ services:
       VIRT_Parameters_DirsAllowed: ".,/database,/data"
     volumes:
       - virtuoso-data:/database
-      # De loader vult dit gedeelde volume met de TTL's; Virtuoso leest ze via
-      # file_to_string_output. Geen host-bind-mount (werkt niet in Portainer).
-      - ggm-data:/data:ro
+      # De dropmap: een ABSOLUUT host-pad waar de TTL's via rsync belanden.
+      # Absolute host-paden mogen wél als bind-mount (anders dan repo-relatieve
+      # './data'). Virtuoso leest ze via file_to_string_output; lod-watch laadt ze.
+      - ${LOD_HOST_DIR:-/srv/ggm-lod}:/data:ro
     # Poorten 1111 (isql) en 8890 (http) blijven intern; alleen Caddy geeft
     # /sparql publiek door. Bewust geen 'ports:' hier.
 
-  # One-shot importer: draait bij elke (re)deploy, laadt data/ en stopt.
-  # load.sh en de TTL-data zitten in het image (loader/Dockerfile), niet als
-  # bind-mount: repo-inhoud is in Portainer niet betrouwbaar te mounten. De data
-  # gaat via het gedeelde named volume 'ggm-data' naar Virtuoso.
-  loader:
-    build:
-      context: .
-      dockerfile: loader/Dockerfile
+  # Loader-watcher: draait continu en laadt nieuwe/gewijzigde ggm-<versie>.ttl uit
+  # de dropmap (/data) in Virtuoso. De TTL's komen via rsync-over-SSH binnen; dit
+  # proces kent het dba-wachtwoord (stack-env), de client heeft dat niet nodig.
+  lod-watch:
+    build: ./lod-watch
     depends_on:
       - virtuoso
-    restart: "no"
-    entrypoint: ["/bin/sh", "/loader/load.sh"]
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/watch.sh"]
     environment:
       DBA_PASSWORD: ${DBA_PASSWORD:?zet DBA_PASSWORD in de stack-env}
       GRAPH_BASE: ${GRAPH_BASE:-https://lod.gemeentelijkgegevensmodel.nl/graph}
       VIRTUOSO_HOST: virtuoso
+      WATCH_INTERVAL: ${WATCH_INTERVAL:-20}
     volumes:
-      - ggm-data:/data
+      - ${LOD_HOST_DIR:-/srv/ggm-lod}:/data:ro
+      - lod-state:/state
 
   # Generieke verkenner. Later inruilen voor de frontend van Ashkan:
   # vervang 'build: ./frontend' door 'image: <zijn-image>' en zet
@@ -60,4 +60,4 @@ services:
 
 volumes:
   virtuoso-data:
-  ggm-data:
+  lod-state:
