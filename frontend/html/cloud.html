@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LOD-cloud — Gemeentelijk Gegevensmodel</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    main { padding: 1.25rem 0 2rem; }
+    .cloud-bar { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; margin-bottom: .8rem; }
+    .cloud-bar input[type="search"] { flex: 0 0 15rem; font: inherit; padding: .45rem .7rem; border: 1px solid var(--rand); border-radius: 8px; background: var(--wit); }
+    .chips { display: flex; flex-wrap: wrap; gap: .35rem; }
+    .chip { display: inline-flex; align-items: center; gap: .35rem; font: inherit; font-size: .85rem; padding: .2rem .6rem; border: 1px solid var(--rand); border-radius: 999px; background: var(--wit); color: var(--tekst); cursor: pointer; }
+    .chip .sw { width: .8em; height: .8em; border-radius: 3px; border: 1px solid; }
+    .chip .n { color: var(--tekst-zacht); font-size: .9em; }
+    .chip.uit { opacity: .4; }
+    .knop { font: inherit; font-size: .85rem; padding: .3rem .7rem; border: 1px solid var(--rand); border-radius: 8px; background: var(--wit); color: var(--tekst); cursor: pointer; }
+    .knop:hover { border-color: var(--accent); }
+    label.extern { display: inline-flex; align-items: center; gap: .35rem; font-size: .85rem; color: var(--tekst-zacht); }
+    #wolk-status { font-size: .85rem; color: var(--tekst-zacht); margin-bottom: .6rem; min-height: 1.2em; }
+    #net { width: 100%; height: 74vh; min-height: 420px; border: 1px solid var(--rand); border-radius: 10px; background: #fbfcfd; }
+    .cloud-hint { font-size: .8rem; color: var(--tekst-zacht); margin-top: .5rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap header-inner">
+      <h1><a href="/">Gemeentelijk Gegevensmodel <span>Linked Data</span></a></h1>
+      <nav>
+        <label for="graph-select" class="visually-hidden">GGM-versie</label>
+        <select id="graph-select" title="GGM-versie"></select>
+        <a href="/">Verkenner</a>
+        <a href="/query.html">SPARQL-editor</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="cloud-bar">
+      <input id="zoek" type="search" placeholder="Zoek een objecttype…" autocomplete="off">
+      <div id="chips" class="chips"></div>
+      <button class="knop" id="alle">Alle</button>
+      <button class="knop" id="geen">Geen</button>
+      <label class="extern"><input type="checkbox" id="extern-toggle"> externe links</label>
+      <button class="knop" id="herteken">Herteken</button>
+    </div>
+    <div id="wolk-status">LOD-cloud laden…</div>
+    <div id="net"></div>
+    <p class="cloud-hint">Kleur = hoofddomein · pijl = relatie (naam bij hover) · klik een knoop om 'm in de verkenner te openen · scroll = zoomen, sleep = verplaatsen.</p>
+  </main>
+
+  <script src="/domeinen.js"></script>
+  <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+  <script>
+    "use strict";
+    const ENDPOINT = "/sparql";
+    const PREFIXES = `
+PREFIX owl:  <http://www.w3.org/2002/07/owl#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+`;
+    const $ = (s) => document.querySelector(s);
+    const padVan = (u) => { try { return new URL(u).pathname; } catch { return u; } };
+    const domeinVan = (u) => { const d = padVan(u).split("/"); return d.length > 2 ? decodeURIComponent(d[1]) : ""; };
+    const labelVanUri = (u) => decodeURIComponent(padVan(u).split("/").pop());
+    const graphNaam = (u) => u.replace(/\/$/, "").split("/").pop();
+
+    async function sparql(query) {
+      const res = await fetch(ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/sparql-results+json" },
+        body: "query=" + encodeURIComponent(PREFIXES + query),
+      });
+      if (!res.ok) throw new Error("SPARQL-endpoint antwoordde met HTTP " + res.status);
+      return (await res.json()).results.bindings;
+    }
+
+    // ---------- state ----------
+    let netwerk = null, nodesDS = null, edgesDS = null;
+    const nodeById = new Map();
+    const actief = new Set();      // actieve hoofddomeinen
+    let zoek = "", toonExtern = false;
+
+    const status = (t) => { $("#wolk-status").textContent = t; };
+
+    function zichtbaar(id) {
+      const n = nodeById.get(id);
+      if (!n) return false;
+      if (n.group === "extern") return toonExtern;
+      if (!actief.has(n.group)) return false;
+      if (zoek && !n.label.toLowerCase().includes(zoek)) return false;
+      return true;
+    }
+
+    function ververs() {
+      if (!nodesDS) return;
+      nodesView.refresh(); edgesView.refresh();
+      const zichtbaarN = [...nodeById.values()].filter((n) => n.group !== "extern" && zichtbaar(n.id)).length;
+      const totaalN = [...nodeById.values()].filter((n) => n.group !== "extern").length;
+      status(`${zichtbaarN} van ${totaalN} objecttypen zichtbaar`);
+    }
+
+    let nodesView, edgesView;
+    const nodeFilter = (n) => zichtbaar(n.id);
+    const edgeFilter = (e) => zichtbaar(e.from) && zichtbaar(e.to);
+
+    // ---------- init ----------
+    async function init() {
+      let graphs;
+      try {
+        const rows = await sparql(`SELECT ?g WHERE { GRAPH ?g { ?s ?p ?o } } GROUP BY ?g`);
+        graphs = rows.map((r) => r.g.value).filter((g) => g.includes("/graph/"))
+          .sort((a, b) => graphNaam(b).localeCompare(graphNaam(a), undefined, { numeric: true }));
+      } catch (e) {
+        status("Kan het SPARQL-endpoint niet bereiken: " + e.message);
+        return;
+      }
+      if (!graphs.length) { status("Nog geen GGM-release geladen."); return; }
+
+      const sel = $("#graph-select");
+      sel.innerHTML = graphs.map((g) => `<option value="${g}">${graphNaam(g)}</option>`).join("");
+      const latest = graphs.find((g) => graphNaam(g) === "latest") || graphs[0];
+      sel.value = latest;
+      sel.onchange = () => laadModel(sel.value);
+      await laadModel(latest);
+    }
+
+    async function laadModel(graph) {
+      status("Model laden…");
+      if (netwerk) { netwerk.destroy(); netwerk = null; }
+      nodeById.clear();
+
+      const [klassen, relaties, externe] = await Promise.all([
+        sparql(`SELECT ?c ?label WHERE { GRAPH <${graph}> { ?c a owl:Class ; rdfs:label ?label } }`),
+        sparql(`SELECT ?src ?dst ?rel WHERE { GRAPH <${graph}> {
+                  ?p a owl:ObjectProperty ; rdfs:domain ?src ; rdfs:range ?dst ; rdfs:label ?rel } }`),
+        sparql(`SELECT DISTINCT ?s ?o WHERE { GRAPH <${graph}> {
+                  ?s a owl:Class ; ?p ?o .
+                  FILTER(isIRI(?o)
+                    && !STRSTARTS(STR(?o), "https://lod.gemeentelijkgegevensmodel.nl")
+                    && !STRSTARTS(STR(?o), "http://www.w3.org/")
+                    && !STRSTARTS(STR(?o), "http://purl.org/")
+                    && !STRSTARTS(STR(?o), "http://www.openlinksw.com/")) } }`),
+      ]);
+
+      const nodes = klassen.map((r) => {
+        const uri = r.c.value, dom = domeinVan(uri), hd = hoofddomeinVan(dom);
+        const n = { id: uri, label: r.label.value, group: hd, title: `${r.label.value} · ${dom}`, pad: padVan(uri) };
+        nodeById.set(uri, n);
+        return n;
+      });
+
+      const edges = [];
+      for (const r of relaties) {
+        const from = r.src.value, to = r.dst.value;
+        if (nodeById.has(from) && nodeById.has(to) && from !== to)
+          edges.push({ from, to, title: r.rel.value, arrows: "to" });
+      }
+
+      let externCount = 0;
+      for (const r of externe) {
+        const o = r.o.value, s = r.s.value;
+        if (!nodeById.has(o)) {
+          const en = { id: o, label: labelVanUri(o), group: "extern", title: o, extern: o };
+          nodeById.set(o, en); nodes.push(en); externCount++;
+        }
+        if (nodeById.has(s)) edges.push({ from: s, to: o, arrows: "to", dashes: true, color: { color: "#c39" } });
+      }
+
+      // hoofddomeinen die voorkomen
+      const telling = new Map();
+      for (const n of nodes) if (n.group !== "extern") telling.set(n.group, (telling.get(n.group) || 0) + 1);
+      actief.clear();
+      for (const hd of telling.keys()) actief.add(hd);
+      bouwChips(telling);
+      $("#extern-toggle").disabled = externCount === 0;
+      $("#extern-toggle").checked = false; toonExtern = false;
+      $("#extern-toggle").parentElement.title = externCount ? `${externCount} externe verwijzingen` : "geen externe links in deze versie";
+
+      const groups = {};
+      for (const hd of Object.keys(HOOFDDOMEIN_KLEUR)) {
+        const [bg, tx] = HOOFDDOMEIN_KLEUR[hd];
+        groups[hd] = { color: { background: bg, border: tx, highlight: { background: bg, border: "#2e7bb8" } }, font: { color: tx } };
+      }
+      groups["extern"] = { shape: "diamond", color: { background: "#f3e6ea", border: "#c39" }, font: { color: "#9c3a58" } };
+
+      nodesDS = new vis.DataSet(nodes);
+      edgesDS = new vis.DataSet(edges);
+      nodesView = new vis.DataView(nodesDS, { filter: nodeFilter });
+      edgesView = new vis.DataView(edgesDS, { filter: edgeFilter });
+
+      const options = {
+        nodes: { shape: "dot", size: 11, borderWidth: 1, font: { size: 13, face: "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" } },
+        edges: { color: { color: "#cdd6de", highlight: "#2e7bb8" }, width: 0.7, selectionWidth: 1.5, smooth: false, arrows: { to: { enabled: true, scaleFactor: 0.4 } } },
+        groups,
+        physics: {
+          solver: "barnesHut",
+          barnesHut: { gravitationalConstant: -9000, centralGravity: 0.25, springLength: 130, springConstant: 0.04, damping: 0.6, avoidOverlap: 0.15 },
+          stabilization: { enabled: true, iterations: 250, updateInterval: 30 },
+        },
+        interaction: { hover: true, tooltipDelay: 120, hideEdgesOnDrag: true, multiselect: false },
+      };
+
+      status(`Cloud berekenen… (${nodes.length} knopen, ${edges.length} relaties)`);
+      netwerk = new vis.Network($("#net"), { nodes: nodesView, edges: edgesView }, options);
+      netwerk.once("stabilizationIterationsDone", () => { netwerk.setOptions({ physics: false }); ververs(); });
+      netwerk.on("click", (p) => {
+        if (!p.nodes.length) return;
+        const n = nodeById.get(p.nodes[0]);
+        if (!n) return;
+        if (n.extern) window.open(n.extern, "_blank");
+        else if (n.pad) window.open(n.pad, "_blank");
+      });
+    }
+
+    // ---------- toolbar ----------
+    function bouwChips(telling) {
+      const volg = HOOFDDOMEIN_VOLGORDE.filter((h) => telling.has(h))
+        .concat([...telling.keys()].filter((h) => !HOOFDDOMEIN_VOLGORDE.includes(h)));
+      $("#chips").innerHTML = volg.map((hd) => {
+        const [bg, tx] = HOOFDDOMEIN_KLEUR[hd] || HOOFDDOMEIN_KLEUR["Overig"];
+        return `<button class="chip" data-hd="${hd}"><span class="sw" style="background:${bg};border-color:${tx}"></span>${hd}<span class="n">${telling.get(hd)}</span></button>`;
+      }).join("");
+      for (const c of document.querySelectorAll(".chip")) {
+        c.onclick = () => {
+          const hd = c.dataset.hd;
+          if (actief.has(hd)) { actief.delete(hd); c.classList.add("uit"); }
+          else { actief.add(hd); c.classList.remove("uit"); }
+          ververs();
+        };
+      }
+    }
+
+    $("#alle").onclick = () => { for (const c of document.querySelectorAll(".chip")) { actief.add(c.dataset.hd); c.classList.remove("uit"); } ververs(); };
+    $("#geen").onclick = () => { actief.clear(); for (const c of document.querySelectorAll(".chip")) c.classList.add("uit"); ververs(); };
+    $("#extern-toggle").onchange = (e) => { toonExtern = e.target.checked; ververs(); };
+    $("#zoek").addEventListener("input", (e) => { zoek = e.target.value.trim().toLowerCase(); ververs(); });
+    $("#herteken").onclick = () => {
+      if (!netwerk) return;
+      netwerk.setOptions({ physics: true });
+      netwerk.once("stabilizationIterationsDone", () => netwerk.setOptions({ physics: false }));
+      netwerk.stabilize(200);
+    };
+
+    init();
+  </script>
+</body>
+</html>
